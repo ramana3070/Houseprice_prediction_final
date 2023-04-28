@@ -1,0 +1,148 @@
+---
+title: "Housepriceprediction"
+author: "Ramana"
+output: pdf_document
+---
+
+```{r}
+#Loading the dataset
+data=read.csv("data.csv")
+
+```
+
+```{r}
+#Summary of dataset
+summary(data)
+```
+
+```{r}
+head(data)
+```
+
+Data Cleaning
+```{r}
+sum(is.na(data))
+#There are no missing values in the dataset taken
+```
+
+```{r}
+colSums(data==0)
+#There are 49 rows with price values as 0 . We need to remove these rows
+```
+
+```{r,include=FALSE}
+data$price<-replace(data$price,data$price==0,NA)
+```
+
+```{r}
+sum(is.na(data))
+```
+
+
+
+```{r,include=FALSE}
+library(tidyr)
+data<-data[complete.cases(data),]
+#We have successfully removed rows which were having 0 as price values.
+```
+
+```{r}
+#normalizing price values
+data$price<-data$price/10000
+```
+
+
+
+Visualization
+```{r}
+library(ggplot2)
+```
+
+```{r}
+ggplot(data,aes(sqft_living,y=price))+
+  geom_point(color="blue")
+```
+
+```{r}
+ggplot(data,aes(x=as.factor(city),fill=as.factor(city)))+
+  geom_bar()
+```
+
+```{r}
+ggplot(data,aes(condition))+
+  geom_bar(color="red")
+```
+```{r}
+ggplot(data, aes(x=yr_built)) +
+  geom_histogram(color="black",fill="yellow")+labs(title = "Houses built year wise")
+```
+
+```{r}
+cols <- sapply(data, is.numeric)
+numeric_data <- data[,cols]
+
+corr_matrix <- cor(numeric_data)
+corr_matrix
+```
+
+There is strong positive co relation between sqft_living and price.
+
+Scaling the values
+```{r}
+data$price=data$price*10000
+cols_scale <- c("price","sqft_living", "sqft_lot", "sqft_above", "sqft_basement")
+scaled_data <- as.data.frame(scale(data[cols_scale]))
+
+data$price=scaled_data$price
+data$sqft_living=scaled_data$sqft_living
+data$sqft_above=scaled_data$sqft_above
+data$sqft_basement=scaled_data$sqft_basement
+data$sqft_lot=scaled_data$sqft_lot
+data$yr_built=2023-data$yr_built
+head(data)
+```
+
+
+Data splitting into test and train dataset
+```{r}
+train <- sample(nrow(data), floor(0.7*nrow(data)), replace = FALSE)
+test <- setdiff(1:nrow(data), train)
+train_data<-data[train, ]
+test_data<-data[test, ]
+```
+
+```{r}
+#The dataset is now split into 30% test data and 70% train data
+print(dim(train_data))
+dim(test_data)
+```
+# 1. Linear Regression Model
+```{r}
+lin_reg<-lm(price~ bedrooms+bathrooms+sqft_living+sqft_lot+floors+ waterfront+view+ condition +sqft_above+sqft_basement+yr_built+yr_renovated,data=train_data)
+summary(lin_reg)
+```
+```{r}
+lin_reg_pred<-predict(lin_reg,newdata=test_data)
+lm_rmse <- sqrt(mean((lin_reg_pred - test_data$price)^2))
+print(paste("Linear Regression RMSE:", lm_rmse))
+```
+
+
+
+# 2. Building a Decision Tree Model
+```{r}
+library(rpart)
+tree_model <- rpart(price ~bedrooms+bathrooms+sqft_living+sqft_lot+floors+ waterfront+view+ condition +sqft_above+sqft_basement+yr_built+yr_renovated , data = train_data, method = "anova")
+printcp(tree_model)
+plot(tree_model)
+text(tree_model)
+```
+
+
+
+```{r}
+head(test_data)
+predicted_price <- predict(tree_model, test_data[,-c(1)],method="anova",type="vector")
+rmse <- sqrt(mean((predicted_price - test_data$price) ^ 2))
+print(paste("Decision Tree RMSE:", rmse))
+```
